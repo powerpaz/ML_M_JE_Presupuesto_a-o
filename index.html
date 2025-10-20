@@ -7,8 +7,9 @@
 
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
-  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
-  <script defer src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
   <style>
     :root{
@@ -72,21 +73,21 @@
       <aside class="panel">
         <div class="row">
           <label>AMIE</label>
-          <input type="search" placeholder="Buscar por AMIE (exacto o parcial)">
+          <input id="busqueda" type="search" placeholder="Buscar por AMIE o nombre">
         </div>
 
         <div class="row">
           <label>PROVINCIA</label>
-          <select><option>Todas</option></select>
+          <select id="provSel"><option>Todas</option></select>
         </div>
         <div class="row">
           <label>CANTÓN</label>
-          <select><option>Todos</option></select>
+          <select id="cantonSel"><option>Todos</option></select>
         </div>
 
         <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <button>Limpiar filtros</button>
-          <button class="success">Exportar CSV</button>
+          <button id="btnLimpiar">Limpiar filtros</button>
+          <button class="success" id="btnExportar">Exportar CSV</button>
         </div>
 
         <!-- RUBROS TABLE -->
@@ -104,8 +105,8 @@
         </div>
 
         <div style="margin-top:10px;font-size:13px;color:#64748b">
-          Instituciones: 827<br>
-          Filtros activos: —
+          Instituciones: <span id="nInst">—</span><br>
+          Filtros activos: <span id="nFiltros">—</span>
         </div>
       </aside>
 
@@ -136,20 +137,40 @@
     document.getElementById('totalC2').textContent = formato.format(total);
   }
 
-  // === MAP ===
+  // === MAPA Y DATOS ===
+  let map, cluster;
+
   function initMap(){
-    const map = L.map('map').setView([-1.83, -78.18], 6);
+    map = L.map('map').setView([-1.83, -78.18], 7);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
       attribution:'© OpenStreetMap contributors'
     }).addTo(map);
+    cluster = L.markerClusterGroup({ maxClusterRadius: 60 });
+    map.addLayer(cluster);
 
-    // Capa de provincias (si existe)
+    // Provincias
     fetch('provincias_simplificado.geojson')
       .then(r=>r.ok?r.json():null)
       .then(j=>{
         if(j) L.geoJSON(j,{style:{color:'#1d4ed8',weight:2,fillOpacity:0}}).addTo(map);
-      })
-      .catch(()=>{});
+      });
+
+    // Instituciones desde CSV
+    Papa.parse('datos_min.csv', {
+      download: true,
+      header: true,
+      complete: function(results) {
+        const data = results.data.filter(r => r.Latitud && r.Longitud);
+        document.getElementById('nInst').textContent = data.length;
+        data.forEach(r => {
+          const marker = L.marker([parseFloat(r.Latitud), parseFloat(r.Longitud)]);
+          const amie = r.AMIE || r.amie || '—';
+          const nombre = r.NOMBRE || r.Nombre || 'Sin nombre';
+          marker.bindPopup(`<b>${amie}</b><br>${nombre}`);
+          cluster.addLayer(marker);
+        });
+      }
+    });
   }
 
   document.addEventListener('DOMContentLoaded', ()=>{
