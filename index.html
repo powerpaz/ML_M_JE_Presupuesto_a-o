@@ -1,225 +1,161 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Rubros C2 — Mapa y Tabla (Versión Ligera)</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Rubros C2 — Tabla + Mapa (Versión Ligera)</title>
 
   <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" crossorigin="anonymous"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" crossorigin="anonymous"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
   <script defer src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js" crossorigin="anonymous"></script>
 
-  <!-- ======== ESTILOS ======== -->
   <style>
     :root{
-      --prim:#21335c;        /* Azul institucional */
-      --prim-dk:#1a274a;
-      --muted:#6b7a99;
-      --bg:#f7f9fc;
-      --card:#ffffff;
-      --dash:#d9e1f0;
+      --bg:#f4f5f9; --card:#ffffff; --b:#e5e7eb; --acc:#1d4ed8;
+      --header-h:68px; --radius:14px;
     }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,Segoe UI,Inter,Roboto,Arial,sans-serif;background:var(--bg);color:#111827}
 
-    *{box-sizing:border-box;}
-    html,body{height:100%;margin:0;}
-    body{
-      font-family:system-ui,-apple-system,"Segoe UI",Roboto,Ubuntu,Cantarell,"Noto Sans",sans-serif;
-      color:#111;
-      background:var(--bg);
-    }
-
-    /* ------- HEADER ------- */
+    /* ===== HEADER ===== */
     header{
-      display:flex;
-      align-items:center;
-      gap:16px;
-      padding:12px 20px;
-      background:var(--prim);
-      color:#fff;
-      border-bottom:3px solid var(--prim-dk);
+      position:sticky;top:0;z-index:1000;height:var(--header-h);
+      display:flex;align-items:center;justify-content:center;gap:10px;
+      padding:10px 16px;background:#1e293b;color:white;
+      box-shadow:0 2px 10px rgba(0,0,0,.15)
     }
-    header img{
-      height:60px;
-      max-width:160px;
-      object-fit:contain;
-    }
-    header h1{
-      margin:0;
-      line-height:1.25;
-      font-weight:800;
-      color:#fff;
-      font-size:20px;
-    }
-    header h1 span{
-      display:block;
-      font-weight:500;
-      font-size:16px;
-      opacity:.95;
-    }
-    @media(max-width:640px){
-      header{flex-direction:column;text-align:center;}
-      header img{height:52px;}
-      header h1{font-size:18px;}
-    }
+    header img{height:42px;width:auto;object-fit:contain}
+    header h1{font-size:clamp(16px,3vw,20px);margin:0}
 
-    /* ------- LAYOUT ------- */
-    .layout{display:flex;min-height:calc(100vh - 100px);}
-    aside{
-      width:420px;
-      max-width:460px;
-      flex:0 0 auto;
-      background:var(--card);
-      border-right:1px solid #e6ecf2;
-    }
-    main{
-      flex:1 1 auto;
-      min-width:0;
-      position:relative;
-      background:#eef3fb;
-    }
-    #map{width:100%;height:calc(100vh - 100px);}
-    @media(max-width:900px){
-      .layout{flex-direction:column;}
-      aside{
-        width:100%;max-width:none;border-right:none;border-bottom:1px solid #e6ecf2;
-      }
-      main{height:70vh;}
-      #map{height:70vh;}
-    }
+    /* ===== LAYOUT ===== */
+    .wrap{max-width:1400px;margin:0 auto;padding:16px}
+    .grid{display:grid;grid-template-columns:380px 1fr;gap:16px}
+    aside.panel, main.panel{background:var(--card);border:1px solid var(--b);border-radius:var(--radius);padding:16px}
 
-    /* ------- PANELS ------- */
-    .panel{border-bottom:1px solid #eef2f7;}
-    .panel-header{
-      padding:10px 14px;
-      background:#fff;
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
+    label{display:block;margin-bottom:4px;font-weight:600;color:#1e293b}
+    input,select,button{width:100%;padding:10px;border-radius:10px;border:1px solid var(--b)}
+    button{cursor:pointer;background:var(--acc);color:white;font-weight:600;border:none}
+    button.secondary{background:#0369a1}
+    button.success{background:#16a34a}
+    .row{margin-bottom:12px}
+
+    /* Rubros box */
+    #rubros-box{margin-top:12px;border:1px solid var(--b);border-radius:12px;background:#f9fafb;padding:12px}
+    #rubros-box table{width:100%;border-collapse:collapse;font-size:14px}
+    #rubros-box th{padding:6px 4px;text-align:left;border-bottom:1px solid #cbd5e1}
+    #rubros-box td{padding:6px 4px;border-bottom:1px dashed #e2e8f0}
+    #rubros-box td:last-child{text-align:right}
+    #rubros-box tfoot td{font-weight:700;border-top:2px solid #94a3b8}
+
+    /* Map */
+    #map{height:72vh;border-radius:var(--radius);border:1px solid var(--b)}
+
+    @media(max-width:1024px){
+      .grid{grid-template-columns:1fr}
+      #map{height:60vh}
     }
-    .panel-title{font-weight:700;color:var(--prim);}
-    .muted{color:var(--muted);font-size:12px;}
-    .pad{padding:10px 14px;}
-
-    /* ------- TABLE ------- */
-    table{width:100%;border-collapse:collapse;}
-    th,td{padding:8px;border-bottom:1px dashed var(--prim);}
-    th{color:var(--prim);text-align:left;background:#f2f5fb;}
-    td:last-child,th:last-child{text-align:right;}
-    tfoot td{font-weight:800;border-bottom:none;}
-
-    /* ------- BUTTONS ------- */
-    button{
-      padding:6px 10px;
-      border-radius:10px;
-      border:1px solid #d6dde7;
-      background:#fff;
-      cursor:pointer;
-      transition:background .15s ease,transform .05s ease;
-    }
-    button:hover{background:#f6f9ff;}
-    button:active{transform:translateY(1px);}
-
-    /* ------- FILTERS ------- */
-    .filters{display:grid;grid-template-columns:1fr;gap:8px;}
-    .filters label{font-size:12px;color:#334;display:block;margin-bottom:2px;}
-    .filters input,.filters select{
-      width:100%;
-      padding:8px;
-      border:1px solid #d6dde7;
-      border-radius:8px;
-      background:#fbfdff;
-    }
-    .filters .row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-    @media(max-width:420px){.filters .row{grid-template-columns:1fr;}}
-
-    /* ------- MAP LEGEND ------- */
-    .legend{
-      position:absolute;
-      right:12px;
-      bottom:14px;
-      background:#fff;
-      border:1px solid #d6dde7;
-      border-radius:10px;
-      padding:8px 10px;
-      font-size:12px;
-      box-shadow:0 2px 10px rgba(0,0,0,.08);
-    }
-
-    .status{margin-left:8px;}
-    tbody tr td:first-child{border-right:1px dotted var(--dash);}
   </style>
-
-  <!-- Script principal -->
-  <script defer src="app.js"></script>
 </head>
 <body>
 
   <!-- HEADER -->
   <header>
-    <img src="logo.png" alt="Logo institucional">
-    <h1>Ministerio de Educación — Rubros C2
-      <span>Tabla + Mapa (Versión Ligera)</span>
-    </h1>
+    <img src="logo.png" alt="Logo institucional" onerror="this.style.display='none'">
+    <h1>Rubros C2 — Tabla + Mapa (Versión Ligera)</h1>
   </header>
 
-  <!-- LAYOUT -->
-  <div class="layout">
-    <aside>
-      <div class="panel">
-        <div class="panel-header">
-          <div class="panel-title">Filtros</div>
-          <div><span class="muted status" id="status">Cargando…</span></div>
+  <!-- CONTENT -->
+  <div class="wrap">
+    <div class="grid">
+      <!-- SIDEBAR -->
+      <aside class="panel">
+        <div class="row">
+          <label>AMIE</label>
+          <input type="search" placeholder="Buscar por AMIE (exacto o parcial)">
         </div>
-        <div class="pad">
-          <div class="filters">
-            <div>
-              <label for="amieTxt">AMIE</label>
-              <input id="amieTxt" type="text" placeholder="Buscar por AMIE (exacto o parcial)">
-            </div>
-            <div class="row">
-              <div>
-                <label for="provSel">PROVINCIA</label>
-                <select id="provSel"><option value="">Todas</option></select>
-              </div>
-              <div>
-                <label for="cantSel">CANTÓN</label>
-                <select id="cantSel"><option value="">Todos</option></select>
-              </div>
-            </div>
-            <div>
-              <button id="btnLimpiar">Limpiar filtros</button>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <div class="panel">
-        <div class="panel-header">
-          <div class="panel-title">Tabla principal</div>
-          <div><button id="btnExport">Exportar CSV</button></div>
+        <div class="row">
+          <label>PROVINCIA</label>
+          <select><option>Todas</option></select>
         </div>
-        <div class="pad">
+        <div class="row">
+          <label>CANTÓN</label>
+          <select><option>Todos</option></select>
+        </div>
+
+        <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <button>Limpiar filtros</button>
+          <button class="success">Exportar CSV</button>
+        </div>
+
+        <!-- RUBROS TABLE -->
+        <div id="rubros-box">
+          <div style="font-weight:700;margin-bottom:8px">💼 Presupuesto — C2</div>
           <table id="rubrosTable">
-            <thead><tr><th>Rubro</th><th>Costo</th></tr></thead>
+            <thead>
+              <tr><th>Rubro</th><th>Costo</th></tr>
+            </thead>
             <tbody></tbody>
-            <tfoot><tr><td>Total</td><td id="totalCell">—</td></tr></tfoot>
+            <tfoot>
+              <tr><td>Total</td><td id="totalC2">$0,00</td></tr>
+            </tfoot>
           </table>
-          <div class="muted" id="countInstituciones" style="margin-top:6px">Instituciones: —</div>
-          <div class="muted" id="filtrosActivos" style="margin-top:4px">Filtros activos: —</div>
         </div>
-      </div>
-    </aside>
 
-    <main>
-      <div id="map"></div>
-      <div class="legend">
-        <div><b>Mapa — Rubros C2</b></div>
-        <div class="muted">Provincias simplificadas para carga rápida.</div>
-      </div>
-    </main>
+        <div style="margin-top:10px;font-size:13px;color:#64748b">
+          Instituciones: 827<br>
+          Filtros activos: —
+        </div>
+      </aside>
+
+      <!-- MAIN -->
+      <main class="panel">
+        <div id="map"></div>
+      </main>
+    </div>
   </div>
+
+  <script>
+  // === RUBROS C2 ===
+  const RUBROS_C2 = [
+    { nombre: 'C2: Rubro 2.3.1 MATERIAL LÚDICO (DIDÁCTICO)', costo: 6983396.18 },
+    { nombre: 'C2: Rubro 2.3.2 MOBILIARIO', costo: 3656504.00 },
+    { nombre: 'C2: Rubro 2.3.3 JUEGOS EXTERIORES (EQUIPAMIENTO)', costo: 2253216.00 }
+  ];
+  const formato = new Intl.NumberFormat('es-EC', { style:'currency', currency:'USD' });
+
+  function renderRubros(){
+    const tb = document.querySelector('#rubrosTable tbody');
+    const total = RUBROS_C2.reduce((a,b)=>a+b.costo,0);
+    tb.innerHTML = RUBROS_C2.map(r=>`
+      <tr>
+        <td>${r.nombre}</td>
+        <td><b>${formato.format(r.costo)}</b></td>
+      </tr>`).join('');
+    document.getElementById('totalC2').textContent = formato.format(total);
+  }
+
+  // === MAP ===
+  function initMap(){
+    const map = L.map('map').setView([-1.83, -78.18], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      attribution:'© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Capa de provincias (si existe)
+    fetch('provincias_simplificado.geojson')
+      .then(r=>r.ok?r.json():null)
+      .then(j=>{
+        if(j) L.geoJSON(j,{style:{color:'#1d4ed8',weight:2,fillOpacity:0}}).addTo(map);
+      })
+      .catch(()=>{});
+  }
+
+  document.addEventListener('DOMContentLoaded', ()=>{
+    renderRubros();
+    initMap();
+  });
+  </script>
 </body>
 </html>
