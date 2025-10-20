@@ -6,11 +6,11 @@
 body{margin:0;background:var(--bg);color:white;font-family:Inter,system-ui,Segoe UI,Arial}
 .app-header{padding:12px 16px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#0d1420, #0b1118)}
 .brand{display:flex;align-items:center;gap:12px}
-.logo{height:36px;width:auto;filter:drop-shadow(0 0 2px rgba(0,0,0,.5))}
+.logo{height:36px;width:auto;filter:drop-shadow(0 0 2px rgba(0,0,0,5))}
 h1{margin:0;font-size:20px;font-weight:700}
 .accent{color:var(--accent)}
 .kpis{display:flex;gap:12px;margin-top:10px;flex-wrap:wrap}
-.kpi-card{background:var(--card);border:1px solid var(--border);padding:10px 12px;border-radius:14px;min-width:180px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.kpi-card{background:var(--card);border:1px solid var(--border);padding:10px 12px;border-radius:14px;min-width:180px;box-shadow:0 2px 8px rgba(0,0,0,15)}
 .kpi-card.total{border-color:var(--accent)}
 .kpi-title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
 .kpi-value{font-size:20px;font-weight:800;margin-top:4px}
@@ -28,7 +28,7 @@ h1{margin:0;font-size:20px;font-weight:700}
 .panel-header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border)}
 #table-container{overflow:auto;flex:1}
 .tabla{width:100%;border-collapse:collapse;font-size:13px}
-.tabla th,.tabla td{border-bottom:1px solid var(--border);padding:8px;text-align:left}
+.tabla th,tabla td{border-bottom:1px solid var(--border);padding:8px;text-align:left}
 .tabla tbody tr:hover{background:#0f2233;cursor:pointer}
 .panel-footer{display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);padding:8px 10px;color:var(--muted)}
 
@@ -36,6 +36,7 @@ h1{margin:0;font-size:20px;font-weight:700}
 @media (max-width:1100px){.layout{grid-template-columns:1fr} .panel{height:420px}}
 .leaflet-control-attribution{display:none}
 
+/* Estilos adicionales para popups y etiquetas AMIE */
 .amie-label{
   background: rgba(13,20,32,.85);
   color: #fff;
@@ -45,6 +46,6 @@ h1{margin:0;font-size:20px;font-weight:700}
   font-weight: 700;
   font-size: 11px;
 }
-.popup-table td{ padding:2px 6px; border-bottom: 1px solid #233142; font-size: 12px }
-.popup-table tr:last-child td{ border-bottom: none }
-
+.popup-table{border-collapse:collapse}
+.popup-table td{padding:2px 6px;border-bottom:1px solid #233142;font-size:12px;color:#dfe7f1}
+.popup-table tr:last-child td{border-bottom:none}
