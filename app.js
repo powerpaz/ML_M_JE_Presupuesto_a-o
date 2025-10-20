@@ -1,284 +1,466 @@
-// ------------ Config ------------
-const DATA_XLSX = 'base_cruce.xlsx';
-const PROVINCIAS_GEOJSON = 'provincias.geojson';
+# ========================================
+# MAPA EDUCATIVO DINÁMICO - ECUADOR (Colab, robusto + descarga garantizada)
+# ========================================
 
-// Si tus X/Y están en 17S por defecto, deja 17. Si usas 18S, cámbialo a 18.
-// El detector igual intenta inferir automáticamente por valores.
-const DEFAULT_UTM_ZONE = 17; // 17S o 18S
+print("🚀 Iniciando procesamiento con detección automática de columnas…")
 
-// Aliases de campos
-const FIELD_MAP = {
-  lat:  ['lat','latitude','y','coord_y','coordenada_y','LAT'],
-  lon:  ['lon','long','lng','x','coord_x','coordenada_x','LON'],
-  x:    ['x','este','este_utm','coord_x','coordenada x','coordenada_x','X'],
-  y:    ['y','norte','norte_utm','coord_y','coordenada y','coordenada_y','Y'],
-  amie: ['amie','codigo','codigo_amie','AMIE'],
-  nombre:['nombre','institucion','establecimiento','NOMBRE'],
-  tipo: ['tipo','TIPO'],
-  sostenimiento:['sostenimiento','SOSTENIMIENTO'],
-  provincia:['provincia','PROVINCIA'],
-  canton:['canton','cantón','CANTON','CANTÓN'],
-  parroquia:['parroquia','PARROQUIA'],
-  zona:['zona','utm_zona','utmzone','ZONA'] // opcional si viene la zona en la tabla
-};
+# ---- Dependencias
+import pandas as pd, numpy as np, json, re, sys, subprocess, importlib
+from datetime import datetime, date
+from google.colab import files
+from IPython.display import HTML as _HTML, display, IFrame
+import warnings
+warnings.filterwarnings("ignore")
 
-let map, provinciasLayer, markersLayer;
-let dataRows = [];
-let filteredRows = [];
+def _ensure_pkg(pkg):
+    try:
+        importlib.import_module(pkg)
+    except Exception:
+        print(f"📦 Instalando {pkg}…")
+        subprocess.check_call([sys.executable, "-m", "pip", "-q", "install", pkg])
+        importlib.invalidate_caches()
 
-// ------------ Utiles ------------
-function money(n){ try { return new Intl.NumberFormat('es-EC',{style:'currency',currency:'USD'}).format(n); } catch(e){ return '$ ' + n; } }
-function updateKpis(){
-  const mat = 2918.26, mob = 1528.00, jue = 5748.00;
-  document.getElementById('kpi-total').innerText = money(mat + mob + jue);
-}
+# ========================================
+# PASO 1: SUBIR ARCHIVO
+# ========================================
+print("\n" + "="*60)
+print("📁 SUBIR ARCHIVO EXCEL")
+print("="*60)
+uploaded = files.upload()
+if not uploaded:
+    raise SystemExit("❌ No se subió archivo.")
+filename = list(uploaded.keys())[0]
+print(f"✅ Archivo detectado: {filename}")
 
-function initMap(){
-  map = L.map('map',{ zoomControl:true }).setView([-1.6,-78.6], 6);
-  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20});
-  const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:20});
-  osm.addTo(map);
-  L.control.layers({'OSM':osm,'Satellite':esri},{}).addTo(map);
-}
+# ========================================
+# PASO 2: LECTURA
+# ========================================
+def pick_engine(fname: str) -> str:
+    f = fname.lower()
+    if f.endswith(".xlsx"): return "openpyxl"
+    if f.endswith(".xls"):  return "xlrd"
+    return "openpyxl"
 
-async function loadProvincias(){
-  const resp = await fetch(PROVINCIAS_GEOJSON);
-  const gj = await resp.json();
-  provinciasLayer = L.geoJSON(gj, { style:{ color:'#233142', weight:1, fillColor:'#101a26', fillOpacity:0.2 } }).addTo(map);
-  try { map.fitBounds(provinciasLayer.getBounds()); } catch(e){}
-}
+engine = pick_engine(filename)
+if engine == "openpyxl": _ensure_pkg("openpyxl")
+if engine == "xlrd":     _ensure_pkg("xlrd")
 
-// alias finder
-function findField(obj, aliases){
-  const keys = Object.keys(obj);
-  for (let a of aliases){
-    const k = keys.find(k=>k.toLowerCase()===a.toLowerCase());
-    if(k) return k;
-  }
-  for (let a of aliases){
-    const k = keys.find(k=>k.toLowerCase().includes(a.toLowerCase()));
-    if(k) return k;
-  }
-  return null;
-}
+print("\n" + "="*60)
+print("📊 LEYENDO ARCHIVO")
+print("="*60)
+print(f"📋 Engine: {engine}")
 
-// UTM -> WGS84
-function utmToWgs84(E, N, zone, hemisphere='S'){
-  // EPSG 327xx = WGS84 / UTM zone xxS  (sur)
-  // EPSG 326xx = WGS84 / UTM zone xxN  (norte)
-  const epsg = (hemisphere === 'S') ? `EPSG:327${zone}` : `EPSG:326${zone}`;
-  // define proj si no existe
-  const defs = {
-    'EPSG:32717': '+proj=utm +zone=17 +south +datum=WGS84 +units=m +no_defs',
-    'EPSG:32718': '+proj=utm +zone=18 +south +datum=WGS84 +units=m +no_defs',
-    'EPSG:32617': '+proj=utm +zone=17 +datum=WGS84 +units=m +no_defs',
-    'EPSG:32618': '+proj=utm +zone=18 +datum=WGS84 +units=m +no_defs'
-  };
-  if(!proj4.defs[epsg] && defs[epsg]) proj4.defs(epsg, defs[epsg]);
-  const p = proj4(epsg, 'EPSG:4326', [E, N]); // [lon, lat]
-  return { lon: p[0], lat: p[1] };
-}
+def _read_excel_smart(path, engine):
+    # intenta con header=2 y luego con header=0; si falla xlrd/openpyxl alterna engine
+    try:
+        return pd.read_excel(path, header=2, engine=engine)
+    except Exception:
+        try:
+            return pd.read_excel(path, header=0, engine=engine)
+        except Exception:
+            alt = "xlrd" if engine == "openpyxl" else "openpyxl"
+            if alt == "openpyxl": _ensure_pkg("openpyxl")
+            if alt == "xlrd":     _ensure_pkg("xlrd")
+            print(f"⚠️ Cambiando a engine alternativo: {alt}")
+            return pd.read_excel(path, header=2, engine=alt)
 
-// detecta si son UTM por rangos típicos
-function isProbablyUTM(x, y){
-  // Este ~ 150k..850k ; Norte ~ 9.7e6..1.05e7 en Ecuador (aprox)
-  return isFinite(x) && isFinite(y) && x>10000 && x<1000000 && y>9000000 && y<11000000;
-}
+df = _read_excel_smart(filename, engine)
+print(f"✅ Registros: {len(df):,} | Columnas: {len(df.columns)}")
+print("🧭 Primeras columnas:", list(df.columns)[:6])
 
-// normaliza filas (desde objeto XLSX/Supabase)
-function normalizeRow(r, fm){
-  const out = {};
-  // valores crudos
-  const raw = {};
-  Object.keys(r).forEach(k=> raw[k] = r[k]);
+# ========================================
+# PASO 3: DETECTAR COLUMNAS CLAVE
+# ========================================
+def find_col(candidates):
+    for col in df.columns:
+        if col is None: 
+            continue
+        u = str(col).upper()
+        if any(c in u for c in candidates):
+            return col
+    return None
 
-  const lat = parseFloat(r[fm.lat]);
-  const lon = parseFloat(r[fm.lon]);
-  const X = parseFloat(r[fm.x]);
-  const Y = parseFloat(r[fm.y]);
-  const zona = r[fm.zona] ? parseInt(r[fm.zona]) : null;
+amie_col   = find_col(["AMIE"])
+nombre_col = find_col(["INSTITUCION", "INSTITUCIÓN", "NOMBRE", "ESCUELA", "COLEGIO"])
+lat_col    = find_col(["LATITUD", "LAT"])
+lng_col    = find_col(["LONGITUD", "LON", "LONG"])
+sost_col   = find_col(["SOSTENIMIENTO"])
+prov_col   = find_col(["PROVINCIA", "DPA_DESPRO"])
+reg_col    = find_col(["REGIMEN", "RÉGIMEN"])
+anio_col   = find_col(["AÑO LECT", "ANIO LECT", "ANO LECT"])  # opcional
 
-  let latOK=null, lonOK=null;
+print("\n🔍 Columnas detectadas:")
+print("   AMIE:", amie_col)
+print("   Nombre IE:", nombre_col)
+print("   Latitud:", lat_col)
+print("   Longitud:", lng_col)
+print("   Sostenimiento:", sost_col)
+print("   Provincia:", prov_col)
+print("   Régimen:", reg_col)
+print("   Año lectivo:", anio_col)
 
-  if(isFinite(lat) && isFinite(lon) && Math.abs(lat)<=90 && Math.abs(lon)<=180){
-    latOK = lat; lonOK = lon;
-  } else if(isProbablyUTM(X, Y)){
-    const zone = zona || DEFAULT_UTM_ZONE;
-    const {lat:lat2, lon:lon2} = utmToWgs84(X, Y, zone, 'S');
-    latOK = lat2; lonOK = lon2;
-  }
+if not all([amie_col, nombre_col, lat_col, lng_col]):
+    print("❌ Columnas esenciales faltantes. Disponibles:", list(df.columns))
+    raise SystemExit("Faltan columnas esenciales (AMIE, Nombre, Latitud, Longitud).")
 
-  out.lat = latOK;
-  out.lon = lonOK;
+# Renombrar a nombres estándar
+df = df.rename(columns={
+    amie_col:   "AMIE",
+    nombre_col: "NOM_INSTITUCION_EDUCATIVA",
+    lat_col:    "Latitud",
+    lng_col:    "Longitud"
+})
+if sost_col: df = df.rename(columns={sost_col: "NOM_SOSTENIMIENTO"})
+if prov_col: df = df.rename(columns={prov_col: "DPA_DESPRO"})
+if reg_col:  df = df.rename(columns={reg_col:  "REGIMEN"})
+if anio_col: df = df.rename(columns={anio_col: "ANIO_LECTIVO"})
 
-  out.amie = r[fm.amie] ?? '';
-  out.nombre = r[fm.nombre] ?? '';
-  out.tipo = r[fm.tipo] ?? '';
-  out.sostenimiento = r[fm.sostenimiento] ?? '';
-  out.provincia = r[fm.provincia] ?? '';
-  out.canton = r[fm.canton] ?? '';
-  out.parroquia = r[fm.parroquia] ?? '';
-  out.__raw = raw; // para popup completo
-  return out;
-}
+# ========================================
+# PASO 4: LIMPIEZA + VALIDACIÓN
+# ========================================
+print("\n" + "="*60)
+print("🧹 LIMPIEZA Y VALIDACIÓN")
+print("="*60)
 
-// Carga desde XLSX
-async function loadFromXlsx(){
-  const resp = await fetch(DATA_XLSX);
-  const buf = await resp.arrayBuffer();
-  const wb = XLSX.read(buf, { type:'array' });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(ws, { defval: null });
-  if(!rows.length) return [];
-  const fm = {};
-  Object.entries(FIELD_MAP).forEach(([k,aliases])=> fm[k] = findField(rows[0], aliases));
-  return rows.map(r=> normalizeRow(r,fm)).filter(d=> isFinite(d.lat) && isFinite(d.lon));
-}
+df_clean = df[
+    df["AMIE"].notna() &
+    df["NOM_INSTITUCION_EDUCATIVA"].notna() &
+    df["Latitud"].notna() &
+    df["Longitud"].notna()
+].copy()
 
-// Carga desde Supabase (si existe window.env)
-async function loadFromSupabase(){
-  if(typeof window.env === 'undefined' || !window.env.SUPABASE_URL || !window.env.SUPABASE_KEY){
-    return null;
-  }
-  const url = window.env.SUPABASE_URL;
-  const key = window.env.SUPABASE_KEY;
-  // Simple fetch a la REST API de Supabase (table: base_cruce, select all)
-  const res = await fetch(`${url}/rest/v1/base_cruce?select=*`, {
-    headers: { apikey: key, Authorization: `Bearer ${key}` }
-  });
-  if(!res.ok){ console.warn('Supabase error', await res.text()); return []; }
-  const rows = await res.json();
-  if(!rows.length) return [];
-  const fm = {};
-  Object.entries(FIELD_MAP).forEach(([k,aliases])=> fm[k] = findField(rows[0], aliases));
-  return rows.map(r=> normalizeRow(r,fm)).filter(d=> isFinite(d.lat) && isFinite(d.lon));
-}
+df_clean["lat"] = pd.to_numeric(df_clean["Latitud"], errors="coerce")
+df_clean["lng"] = pd.to_numeric(df_clean["Longitud"], errors="coerce")
+df_clean = df_clean[df_clean["lat"].notna() & df_clean["lng"].notna()]
 
-// UI listas
-function populateFilters(rows){
-  function uniq(vals){ return Array.from(new Set(vals.filter(v=>v && v!==''))).sort(); }
-  const prov = uniq(rows.map(r=>r.provincia));
-  const cant = uniq(rows.map(r=>r.canton));
-  const parr = uniq(rows.map(r=>r.parroquia));
-  const sost = uniq(rows.map(r=>r.sostenimiento));
-  function fill(sel, list, label){
-    const el = document.getElementById(sel);
-    el.innerHTML = `<option value="">${label}</option>` + list.map(v=>`<option>${v}</option>`).join('');
-  }
-  fill('filtro-prov', prov, 'Provincia');
-  fill('filtro-cant', cant, 'Cantón');
-  fill('filtro-parr', parr, 'Parroquia');
-  fill('filtro-sost', sost, 'Sostenimiento');
-}
+# Ecuador continental
+df_clean = df_clean[df_clean["lat"].between(-5, 2) & df_clean["lng"].between(-82, -75)].copy()
 
-function renderTable(rows){
-  const tbody = document.querySelector('#tabla tbody');
-  tbody.innerHTML = rows.map((r,idx)=>`
-    <tr data-idx="${idx}">
-      <td>${r.amie||''}</td>
-      <td>${r.nombre||''}</td>
-      <td>${r.tipo||''}</td>
-      <td>${r.sostenimiento||''}</td>
-      <td>${r.provincia||''}</td>
-      <td>${r.canton||''}</td>
-      <td>${r.parroquia||''}</td>
-    </tr>
-  `).join('');
-  tbody.querySelectorAll('tr').forEach(tr=>{
-    tr.addEventListener('click', ()=>{
-      const idx = parseInt(tr.getAttribute('data-idx'));
-      const row = rows[idx];
-      map.setView([row.lat,row.lon], 15);
-      // abre popup del marcador correspondiente
-      markersLayer.eachLayer(l=>{
-        if(l.getLatLng && Math.abs(l.getLatLng().lat-row.lat)<1e-8 && Math.abs(l.getLatLng().lng-row.lon)<1e-8){
-          l.openPopup();
-        }
+print(f"✅ Instituciones válidas: {len(df_clean):,} / {len(df):,} ({len(df_clean)/max(len(df),1)*100:.1f}%)")
+if len(df_clean):
+    print(f"🌍 Latitud: {df_clean['lat'].min():.6f} a {df_clean['lat'].max():.6f}")
+    print(f"🌍 Longitud: {df_clean['lng'].min():.6f} a {df_clean['lng'].max():.6f}")
+
+# ========================================
+# PASO 5: AGRUPAMIENTO POR PROXIMIDAD
+# ========================================
+print("\n" + "="*60)
+print("📍 AGRUPAMIENTO (4 decimales ≈ 11m)")
+print("="*60)
+
+df_clean["lat_round"] = df_clean["lat"].round(4)
+df_clean["lng_round"] = df_clean["lng"].round(4)
+grupos = df_clean.groupby(["lat_round", "lng_round"], dropna=False)
+
+def detectar_col_estudiantes(df_):
+    for c in df_.columns:
+        u = str(c).upper()
+        if any(k in u for k in ["ESTUDIANT", "MATRICUL", "TOTAL ESTUDIANT"]):
+            s = pd.to_numeric(df_[c], errors="coerce")
+            if s.notna().any():
+                return c
+    return None
+
+col_est = detectar_col_estudiantes(df_clean)
+
+datos_para_mapa = []
+for (latr, lngr), g in grupos:
+    stats = {
+        "lat": float(latr),
+        "lng": float(lngr),
+        "total_instituciones": int(len(g)),
+        "sostenimiento": {},
+        "provincias": {},
+        "regimen": {},
+        "instituciones_lista": list(g["NOM_INSTITUCION_EDUCATIVA"].astype(str).head(8))
+    }
+    if "NOM_SOSTENIMIENTO" in g.columns:
+        c = g["NOM_SOSTENIMIENTO"].fillna("No especificado").value_counts()
+        stats["sostenimiento"] = {str(k): int(v) for k, v in c.items()}
+    else:
+        stats["sostenimiento"] = {"No especificado": len(g)}
+    if "DPA_DESPRO" in g.columns:
+        c = g["DPA_DESPRO"].fillna("No especificado").value_counts()
+        stats["provincias"] = {str(k): int(v) for k, v in c.items()}
+    if "REGIMEN" in g.columns:
+        c = g["REGIMEN"].fillna("No especificado").value_counts()
+        stats["regimen"] = {str(k): int(v) for k, v in c.items()}
+    if col_est:
+        stats["estudiantes"] = int(pd.to_numeric(g[col_est], errors="coerce").fillna(0).sum())
+    datos_para_mapa.append(stats)
+
+print(f"✅ Total instituciones: {len(df_clean):,}")
+print(f"✅ Puntos en el mapa: {len(datos_para_mapa):,}")
+
+# ========================================
+# PASO 6: ESTADÍSTICAS (estudiantes + año lectivo)
+# ========================================
+print("\n" + "="*60)
+print("📈 ESTADÍSTICAS")
+print("="*60)
+
+total_instituciones = len(df_clean)
+total_puntos = len(datos_para_mapa)
+promedio_por_punto = int(round(total_instituciones / total_puntos)) if total_puntos else 0
+lat_centro = float(df_clean["lat"].mean()) if len(df_clean) else -1.8312   # Quito aprox
+lng_centro = float(df_clean["lng"].mean()) if len(df_clean) else -78.1834
+
+if col_est:
+    total_estudiantes = int(pd.to_numeric(df_clean[col_est], errors='coerce').fillna(0).sum())
+    fuente_estudiantes = "reporte"
+else:
+    total_estudiantes = int(total_instituciones * 180)
+    fuente_estudiantes = "estimación (180/IE)"
+
+def inferir_anio_lectivo(df_):
+    if "ANIO_LECTIVO" in df_.columns and df_["ANIO_LECTIVO"].notna().any():
+        try:
+            return str(df_["ANIO_LECTIVO"].dropna().astype(str).mode().iloc[0])
+        except Exception:
+            pass
+    hoy = date.today(); y, m = hoy.year, hoy.month
+    reg = None
+    if "REGIMEN" in df_.columns and df_["REGIMEN"].notna().any():
+        reg = df_["REGIMEN"].dropna().astype(str).str.upper().mode().iloc[0]
+    corte = 3 if (reg and "COSTA" in reg) else 9
+    return f"{y}-{y+1}" if m >= corte else f"{y-1}-{y}"
+
+anio_lectivo = inferir_anio_lectivo(df_clean)
+
+print(f"🏫 Instituciones: {total_instituciones:,}")
+print(f"📍 Puntos: {total_puntos:,} | 📊 Promedio/punto: {promedio_por_punto}")
+print(f"👥 Estudiantes: {total_estudiantes:,} ({fuente_estudiantes})")
+print(f"📘 Año lectivo: {anio_lectivo}")
+print(f"🎯 Centro: {lat_centro:.6f}, {lng_centro:.6f}")
+
+# ========================================
+# PASO 7: DIAGNÓSTICO RÁPIDO (opcional)
+# ========================================
+print("\n" + "="*60)
+print("🔎 DIAGNÓSTICO DEL ARCHIVO")
+print("="*60)
+
+n_nulos_lat = df["Latitud"].isna().sum() if "Latitud" in df.columns else None
+n_nulos_lng = df["Longitud"].isna().sum() if "Longitud" in df.columns else None
+dup_amie = df_clean["AMIE"].astype(str).str.strip().duplicated().sum()
+
+if "Latitud" in df.columns and "Longitud" in df.columns:
+    lat0 = pd.to_numeric(df["Latitud"], errors="coerce")
+    lng0 = pd.to_numeric(df["Longitud"], errors="coerce")
+    oob = ~((lat0.between(-5,2)) & (lng0.between(-82,-75)))
+    n_oob = int(oob.fillna(False).sum())
+else:
+    n_oob = None
+
+print(f"• Filas totales: {len(df):,}")
+if n_nulos_lat is not None:
+    print(f"• Nulos Latitud: {n_nulos_lat:,} | Nulos Longitud: {n_nulos_lng:,}")
+print(f"• AMIE duplicados (válidos): {dup_amie:,}")
+if n_oob is not None:
+    print(f"• Coordenadas fuera de Ecuador (previo a filtro): {n_oob:,}")
+
+# ========================================
+# PASO 8: GENERAR HTML (plantilla SIN f-strings)
+# ========================================
+print("\n" + "="*60)
+print("🗺️ GENERANDO MAPA HTML")
+print("="*60)
+
+datos_json = json.dumps(datos_para_mapa, ensure_ascii=False)
+
+HTML_TEMPLATE = r"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Mapa de Instituciones Educativas - Ecuador</title>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css"/>
+  <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin:0; padding:20px; background:linear-gradient(135deg,#667eea,#764ba2); min-height:100vh; }
+    .container { max-width:1400px; margin:0 auto; background:#fff; border-radius:15px; padding:20px; box-shadow:0 15px 35px rgba(0,0,0,.1); }
+    .header { text-align:center; margin-bottom:20px; padding:20px; background:linear-gradient(135deg,#667eea,#764ba2); border-radius:10px; color:#fff; }
+    .header h1 { margin:0; font-size:2.2em; }
+    .header p { margin:10px 0 0 0; opacity:.9; }
+    .dashboard { display:grid; grid-template-columns:320px 1fr; gap:20px; height:700px; }
+    .sidebar { background:#f8f9fa; border-radius:15px; padding:20px; overflow:auto; border:1px solid #e9ecef; }
+    .map-container { border-radius:15px; overflow:hidden; box-shadow:0 5px 15px rgba(0,0,0,.1); }
+    #map { height:100%; width:100%; }
+    .stat-card { background:linear-gradient(135deg,#667eea,#764ba2); color:#fff; padding:20px; border-radius:10px; margin-bottom:15px; text-align:center; box-shadow:0 4px 8px rgba(0,0,0,.1); }
+    .stat-number { font-size:28px; font-weight:700; display:block; }
+    .stat-label { font-size:14px; opacity:.9; margin-top:5px; }
+    .chart-container { background:#fff; border:1px solid #ddd; border-radius:10px; padding:15px; margin-bottom:15px; box-shadow:0 2px 4px rgba(0,0,0,.05); }
+    .chart-title { font-weight:700; margin-bottom:15px; text-align:center; color:#333; font-size:14px; }
+    .chart-bar { margin-bottom:8px; }
+    .chart-bar-label { font-size:12px; margin-bottom:3px; color:#555; }
+    .chart-bar-fill { height:8px; border-radius:4px; transition:width .3s ease; background:#764ba2; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Mapa de Instituciones Educativas - Ecuador</h1>
+      <p>__TOTAL_PUNTOS__ puntos en el mapa • __TOTAL_INSTITUCIONES__ instituciones • 👥 __TOTAL_ESTUDIANTES__ estudiantes</p>
+      <p style="font-size:14px;">Procesado: __TIMESTAMP__ • __ARCHIVO__</p>
+    </div>
+
+    <div class="dashboard">
+      <div class="sidebar">
+        <div class="stat-card">
+          <span class="stat-number">__TOTAL_INSTITUCIONES__</span>
+          <div class="stat-label">Instituciones</div>
+        </div>
+        <div class="stat-card">
+          <span class="stat-number">__TOTAL_ESTUDIANTES__</span>
+          <div class="stat-label">Total Estudiantes</div>
+        </div>
+        <div class="stat-card">
+          <span class="stat-number">__ANIO_LECTIVO__</span>
+          <div class="stat-label">Año lectivo</div>
+        </div>
+
+        <div class="chart-container">
+          <div class="chart-title">Distribución por Sostenimiento</div>
+          <div id="chart-sostenimiento"></div>
+        </div>
+        <div class="chart-container">
+          <div class="chart-title">Top 8 Provincias</div>
+          <div id="chart-provincias"></div>
+        </div>
+      </div>
+
+      <div class="map-container">
+        <div id="map"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const datos = __DATOS_JSON__;
+    let mapa, clusterGroup;
+
+    function initMap() {
+      mapa = L.map('map').setView([__LAT_CENTRO__, __LNG_CENTRO__], 6);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors', maxZoom: 18
+      }).addTo(mapa);
+
+      clusterGroup = L.markerClusterGroup({
+        chunkedLoading: true, maxClusterRadius: 50, spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false, zoomToBoundsOnClick: true, disableClusteringAtZoom: 15
       });
-    });
-  });
-  document.getElementById('sel-count').innerText = 'Filas: ' + rows.length;
-}
+      mapa.addLayer(clusterGroup);
+      agregarMarcadores(datos);
+      crearGraficos();
+    }
 
-function renderMarkers(rows){
-  if(markersLayer) markersLayer.remove();
-  markersLayer = L.layerGroup();
+    function colorPorSostenimiento(k) {
+      const K = (k||'').toString().toUpperCase();
+      if (K === 'FISCAL') return '#2e7d32';
+      if (K === 'PARTICULAR') return '#d32f2f';
+      if (K.indexOf('FISCOM')>=0) return '#f57c00';
+      return '#1976d2';
+    }
 
-  rows.forEach(r=>{
-    // Etiqueta permanente con AMIE
-    const marker = L.circleMarker([r.lat, r.lon], {
-      radius:6, color:'#1DB954', weight:2, fillColor:'#1DB954', fillOpacity:0.35
-    });
-    marker.bindTooltip(r.amie || '—', {permanent:true, direction:'top', offset:[0,-8], className:'amie-label'});
-    // Popup con TODAS las columnas
-    const kv = Object.entries(r.__raw || {}).map(([k,v])=>`<tr><td><b>${k}</b></td><td>${v==null?'':v}</td></tr>`).join('');
-    marker.bindPopup(`<div style="max-height:240px;overflow:auto">
-      <b>${r.nombre||'—'}</b><br/>AMIE: ${r.amie||'—'}<hr/>
-      <table class="popup-table">${kv}</table>
-    </div>`);
-    markersLayer.addLayer(marker);
-  });
-  markersLayer.addTo(map);
-}
+    function agregarMarcadores(datos) {
+      clusterGroup.clearLayers();
+      datos.forEach(inst => {
+        const sostKey = Object.keys(inst.sostenimiento||{})[0] || 'No especificado';
+        const color = colorPorSostenimiento(sostKey);
+        const size = Math.min(Math.max(Math.sqrt(inst.total_instituciones)*2 + 6, 8), 25);
 
-// filtro
-function doFilter(){
-  const p = document.getElementById('filtro-prov').value;
-  const c = document.getElementById('filtro-cant').value;
-  const pr = document.getElementById('filtro-parr').value;
-  const s = document.getElementById('filtro-sost').value;
-  const qA = document.getElementById('buscar-amie').value.trim().toLowerCase();
-  const qN = document.getElementById('buscar-nombre').value.trim().toLowerCase();
-  filteredRows = dataRows.filter(r=>{
-    return (!p || r.provincia===p) &&
-           (!c || r.canton===c) &&
-           (!pr || r.parroquia===pr) &&
-           (!s || r.sostenimiento===s) &&
-           (!qA || (r.amie||'').toLowerCase().includes(qA)) &&
-           (!qN || (r.nombre||'').toLowerCase().includes(qN));
-  });
-  renderTable(filteredRows);
-  renderMarkers(filteredRows);
-}
+        const marker = L.circleMarker([inst.lat, inst.lng], {
+          radius:size, fillColor:color, color:'#fff', weight:2, fillOpacity:0.85
+        });
 
-function exportCSV(){
-  const header = ['amie','nombre','tipo','sostenimiento','provincia','canton','parroquia','lat','lon'];
-  const rows = [header.join(',')].concat(filteredRows.map(r=> header.map(h=> (r[h]??'')).join(',')));
-  const blob = new Blob([rows.join('\n')], {type:'text/csv;charset=utf-8;'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'seleccion.csv'; a.click();
-  URL.revokeObjectURL(url);
-}
+        const sostInfo = Object.entries(inst.sostenimiento||{}).sort((a,b)=>b[1]-a[1]).map(([k,v])=>k+': '+v).join(', ') || '—';
+        const provInfo = Object.entries(inst.provincias||{}).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,v])=>k+': '+v).join(', ') || '—';
+        const regInfo  = Object.entries(inst.regimen||{}).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([k,v])=>k+': '+v).join(', ');
+        const instTxt  = (inst.instituciones_lista||[]).map(n=>'• '+(n||'').substring(0,60)+((n||'').length>60?'…':'')).join('<br/>');
 
-async function bootstrap(){
-  updateKpis();
-  initMap();
-  await loadProvincias();
+        let html = '<div style="width:360px;font-family:Arial,sans-serif;">'
+                 + '<h4 style="margin:0 0 8px;color:'+color+';">Ubicación Educativa</h4>'
+                 + '<p style="margin:4px 0;"><b>Instituciones:</b> '+inst.total_instituciones+'</p>'
+                 + '<p style="margin:4px 0;"><b>Sostenimiento:</b> '+sostInfo+'</p>'
+                 + '<p style="margin:4px 0;"><b>Provincias:</b> '+provInfo+'</p>';
+        if (regInfo) html += '<p style="margin:4px 0;"><b>Régimen:</b> '+regInfo+'</p>';
+        if (typeof inst.estudiantes === 'number') {
+          html += '<p style="margin:4px 0;"><b>Estudiantes (grupo):</b> '+inst.estudiantes.toLocaleString()+'</p>';
+        }
+        html += '<p style="margin:4px 0;"><b>Instituciones en esta ubicación:</b></p>'
+             +  '<div style="font-size:11px;max-height:120px;overflow:auto;background:#f8f9fa;padding:6px;border-radius:4px;">'
+             +  instTxt + '</div></div>';
 
-  // Prioriza Supabase si existe config
-  const fromSupabase = await loadFromSupabase();
-  dataRows = (fromSupabase && fromSupabase.length) ? fromSupabase : await loadFromXlsx();
+        marker.bindPopup(html);
+        clusterGroup.addLayer(marker);
+      });
+    }
 
-  if(!dataRows.length){
-    alert('No se encontraron filas válidas (revisa columnas lat/lon o UTM X/Y).');
-  }
-  populateFilters(dataRows);
-  filteredRows = dataRows.slice();
-  renderTable(filteredRows);
-  renderMarkers(filteredRows);
+    function crearGraficos() {
+      const totS = {};
+      datos.forEach(inst => { Object.entries(inst.sostenimiento||{}).forEach(([s,c]) => totS[s]=(totS[s]||0)+c); });
+      const cS = document.getElementById('chart-sostenimiento'); cS.innerHTML='';
+      const sumS = Object.values(totS).reduce((a,b)=>a+b,0) || 1;
+      Object.entries(totS).sort((a,b)=>b[1]-a[1]).forEach(([k,v])=>{
+        const pct = (v/sumS*100).toFixed(1);
+        const d = document.createElement('div'); d.className='chart-bar';
+        d.innerHTML = '<div class="chart-bar-label">'+k+': '+v.toLocaleString()+' ('+pct+'%)</div>'
+                    + '<div class="chart-bar-fill" style="width:'+pct+'%;"></div>';
+        cS.appendChild(d);
+      });
 
-  document.getElementById('btn-buscar').addEventListener('click', doFilter);
-  document.getElementById('btn-limpiar').addEventListener('click', ()=>{
-    ['filtro-prov','filtro-cant','filtro-parr','filtro-sost','buscar-amie','buscar-nombre'].forEach(id=>{ document.getElementById(id).value=''; });
-    doFilter();
-  });
-  document.getElementById('btn-export').addEventListener('click', exportCSV);
-  document.getElementById('toggle-panel').addEventListener('click', ()=>{
-    const panel = document.querySelector('.panel');
-    if(panel.style.display==='none'){ panel.style.display='flex'; document.getElementById('toggle-panel').innerText='Ocultar'; }
-    else { panel.style.display='none'; document.getElementById('toggle-panel').innerText='Mostrar'; }
-  });
-}
+      const totP = {};
+      datos.forEach(inst => { Object.entries(inst.provincias||{}).forEach(([p,c]) => totP[p]=(totP[p]||0)+c); });
+      const cP = document.getElementById('chart-provincias'); cP.innerHTML='';
+      const top = Object.entries(totP).sort((a,b)=>b[1]-a[1]).slice(0,8);
+      const maxv = top.length ? top[0][1] : 1;
+      top.forEach(([k,v])=>{
+        const pct = v/maxv*100;
+        const d = document.createElement('div'); d.className='chart-bar';
+        d.innerHTML = '<div class="chart-bar-label">'+k.substring(0,18)+': '+v.toLocaleString()+'</div>'
+                    + '<div class="chart-bar-fill" style="width:'+pct+'%;"></div>';
+        cP.appendChild(d);
+      });
+    }
 
-bootstrap();
+    document.addEventListener('DOMContentLoaded', initMap);
+  </script>
+</body>
+</html>
+"""
+
+timestamp_str = datetime.now().strftime('%d/%m/%Y %H:%M')
+html_content = (HTML_TEMPLATE
+  .replace("__TOTAL_PUNTOS__", f"{total_puntos:,}")
+  .replace("__TOTAL_INSTITUCIONES__", f"{total_instituciones:,}")
+  .replace("__TOTAL_ESTUDIANTES__", f"{total_estudiantes:,}")
+  .replace("__TIMESTAMP__", timestamp_str)
+  .replace("__ARCHIVO__", str(filename))
+  .replace("__LAT_CENTRO__", f"{lat_centro:.6f}")
+  .replace("__LNG_CENTRO__", f"{lng_centro:.6f}")
+  .replace("__DATOS_JSON__", datos_json)
+  .replace("__ANIO_LECTIVO__", str(anio_lectivo))
+)
+
+# ========================================
+# PASO 9: GUARDAR + DESCARGAR (con fallback)
+# ========================================
+print("\n" + "="*60)
+print("💾 GUARDANDO Y DESCARGANDO")
+print("="*60)
+
+out_name = f"mapa_instituciones_ecuador_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+with open(out_name, "w", encoding="utf-8") as f:
+    f.write(html_content)
+
+print(f"✅ Archivo generado: {out_name}")
+try:
+    files.download(out_name)  # método Colab
+    print("⬇️ Descarga iniciada (si no aparece, mira el icono de descargas del navegador).")
+except Exception as e:
+    print(f"⚠️ files.download falló: {e}\nMostrando enlace de respaldo…")
+    display(_HTML(f'<a href="/content/{out_name}" download target="_blank">👉 Descargar {out_name}</a>'))
+    display(IFrame(src=f"/content/{out_name}", width="100%", height="500"))
+
