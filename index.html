@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>C2 — Rubros (Material Lúdico, Mobiliario, Juegos Exteriores)</title>
+
+  <!-- Leaflet + MarkerCluster -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" crossorigin="anonymous" />
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+  <script defer src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js" crossorigin="anonymous"></script>
+
+  <!-- PapaParse (CSV), TopoJSON y Supabase (si los usas en app.js) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script defer src="https://unpkg.com/topojson-client@3"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+  <style>
+    :root{
+      --bg:#0b1426; --card:#101827; --muted:#9ca3af; --b:#1f2937; --acc:#3b82f6; --ok:#10b981;
+      --header-h:64px; --radius:14px; --shadow:0 14px 30px rgba(0,0,0,.25);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Inter,Roboto,Arial,sans-serif;background:var(--bg);color:#f9fafb}
+
+    /* ====== HEADER ====== */
+    header{
+      position:sticky;top:0;z-index:1000; height:var(--header-h);
+      display:flex;align-items:center;gap:14px; justify-content:space-between;
+      padding:10px 16px; background:#0b132b; border-bottom:1px solid #0f1d3a; box-shadow:0 2px 10px rgba(0,0,0,.25);
+    }
+    .brand{display:flex;align-items:center;gap:12px;min-width:0}
+    .brand img{height:38px; width:auto; object-fit:contain}
+    .brand h1{margin:0;font-size:clamp(16px,4vw,20px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+    /* ====== LAYOUT ====== */
+    .wrap{max-width:1400px;margin:0 auto;padding:16px}
+    .grid{display:grid; grid-template-columns:360px 1fr; gap:16px}
+    aside.panel, main.panel{background:var(--card); border:1px solid var(--b); border-radius:var(--radius); padding:14px}
+
+    /* Inputs */
+    .row{margin-bottom:12px}
+    label{display:block; margin:0 0 6px 2px; color:#e5e7eb; font-weight:600; font-size:14px}
+    input,select,button{width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--b); background:#0f172a; color:#f9fafb}
+    input::placeholder{color:#93a4c0}
+    button{cursor:pointer; background:var(--acc); border:none}
+    button.secondary{background:#0ea5e9}
+    button.success{background:var(--ok)}
+
+    /* Chips */
+    .chips{display:flex;flex-wrap:wrap;gap:8px}
+    .chip{padding:8px 12px;border:1px solid var(--b);border-radius:999px;background:#0f172a;color:#d1d5db;cursor:pointer}
+    .chip.active{background:#2563eb;border-color:#2563eb;color:#fff}
+
+    /* Map + details */
+    #map{height:72vh;border-radius:var(--radius);border:1px solid var(--b)}
+    #details{margin-top:14px;border-radius:var(--radius); background:#0f172a; border:1px solid var(--b); padding:12px}
+
+    /* Stats */
+    .stats{display:flex;gap:10px;flex-wrap:wrap;color:#d1d5db}
+    .stat{background:#0f172a;border:1px solid var(--b);border-radius:12px;padding:8px 10px}
+    .stat b{color:#fff}
+    #counter{margin-top:8px;color:#c7d2fe}
+
+    /* Autocomplete */
+    #suggest{display:none;position:absolute;left:0;right:0;top:44px;background:#0a1c3b;border:1px solid #284a91;border-radius:10px;max-height:260px;overflow:auto;z-index:1000}
+    #suggest div{border-bottom:1px solid #284a91;padding:8px 10px;cursor:pointer}
+
+    /* Loading */
+    #loading{position:fixed;inset:0;background:rgba(11,20,38,.96);display:flex;align-items:center;justify-content:center;z-index:2000}
+    #loading .box{text-align:center}
+    #loading .spin{width:44px;height:44px;border:3px solid #30384a;border-top:3px solid var(--acc);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 12px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* Leaflet popups y controles touch-friendly */
+    .leaflet-popup-content{font-size:14px;max-width:min(340px, 90vw)}
+    .leaflet-control-zoom a{width:38px;height:38px;line-height:38px;font-size:18px}
+    .leaflet-control-layers{margin-top:60px}
+
+    /* ====== RESPONSIVE ====== */
+    @media (max-width: 1024px){
+      .wrap{padding:12px}
+      .grid{grid-template-columns:1fr; gap:12px}
+      #map{height:min(62vh, calc(100dvh - 320px))}
+      .brand img{height:30px}
+    }
+    @media (max-width: 480px){
+      header{padding-inline:10px}
+      .leaflet-popup-content{font-size:13px}
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Loading -->
+  <div id="loading"><div class="box"><div class="spin"></div><div>Cargando sistema…</div></div></div>
+
+  <!-- Header con logo del Gobierno -->
+  <header>
+    <div class="brand">
+      <!-- Coloca logo.png en la raíz del repo -->
+      <img src="logo.png" alt="El Nuevo Ecuador — Defiende, Impulsa, Construye" />
+      <h1>Rubros C2 — Material Lúdico, Mobiliario y Juegos Exteriores</h1>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="grid">
+      <aside class="panel">
+        <div class="row">
+          <label>🔎 Búsqueda</label>
+          <div style="position:relative">
+            <input id="q" type="search" placeholder="Código, nombre, provincia…" />
+            <div id="suggest"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <label>📍 Provincia</label>
+          <select id="provSel"><option value="">Todas</option></select>
+        </div>
+        <div class="row">
+          <label>🏛️ Cantón</label>
+          <select id="cantonSel"><option value="">Todos</option></select>
+        </div>
+
+        <div class="row">
+          <label>🏷️ Categorías</label>
+          <div id="chips" class="chips"></div>
+        </div>
+
+        <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <button id="btnAll" type="button">Limpiar filtros</button>
+          <button id="btnProv" type="button" class="secondary">Provincias: ON</button>
+          <button id="btnExport" type="button" class="success" style="grid-column:1 / -1">Exportar CSV</button>
+        </div>
+
+        <div class="stats">
+          <div class="stat">Total: <b id="nTotal">—</b></div>
+          <div class="stat">Visibles: <b id="nFilt">—</b></div>
+        </div>
+        <div id="counter"></div>
+        <div class="box" id="rubros-box" style="margin-top:12px;border:1px solid var(--b);border-radius:12px;background:#0f172a;padding:12px">
+          <div style="font-weight:700;margin-bottom:8px">💼 Presupuesto — C2</div>
+          <table id="rubrosTable" style="width:100%;border-collapse:collapse;font-size:14px">
+            <thead>
+              <tr>
+                <th style="text-align:left;padding:6px 4px;border-bottom:1px solid #21335c">Rubro</th>
+                <th style="text-align:right;padding:6px 4px;border-bottom:1px solid #21335c">Costo</th>
+              </tr>
+            </thead>
+            <tbody><!-- filled by app.js --></tbody>
+          </table>
+<div id="rubrosTotal" style="margin-top:8px;text-align:right;font-weight:600;">Total: <span id="totalRubros">—</span></div>
+        </div>
+
+      </aside>
+
+      <main class="panel">
+        <div id="map" role="region" aria-label="Mapa interactivo"></div>
+        <div id="details"></div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Tu lógica principal -->
+  <script defer src="app.js"></script>
+
+  <!-- NO-OPS opcionales por si app.js las llama -->
+  <script>
+    window.showDistritoDetails = function (campos) {
+      const cod = campos.cod_distri ?? campos.COD_DISTRI ?? '';
+      const nom = campos.nom_distri ?? campos.NOM_DISTRI ?? '';
+      const prov = campos.dpa_despro ?? campos.DPA_DESPRO ?? '';
+      const can  = campos.dpa_descan ?? campos.DPA_DESCAN ?? '';
+      const d = document.getElementById('details');
+      d.innerHTML = `<div><b>${cod}</b> — ${nom}</div><div style="opacity:.8">Provincia: ${prov} • Cantón: ${can}</div>`;
+    };
+    window.updateDashboard = function(){};
+  </script>
+</body>
+</html>
+
+
+
+  
