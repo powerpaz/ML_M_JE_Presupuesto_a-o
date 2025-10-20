@@ -6,11 +6,16 @@
   <title>Ubicacion geografica  ML_M_JE_Presupuesto_año</title>
   <link rel="icon" href="assets/logo.png" />
   <link rel="stylesheet" href="styles.css" />
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Proj4 + Proj4Leaflet para convertir UTM -> WGS84 -->
+  <script src="https://cdn.jsdelivr.net/npm/proj4@2.9.2/dist/proj4.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/proj4leaflet@1.0.2/src/proj4leaflet.min.js"></script>
+  <!-- SheetJS (XLSX) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <!-- (Opcional) config Supabase: define window.env = { SUPABASE_URL:'', SUPABASE_KEY:'' } -->
+  <script src="config.js"></script>
 </head>
 <body>
   <header class="app-header">
@@ -19,22 +24,10 @@
       <h1>Ubicacion geografica  <span class="accent">ML_M_JE_Presupuesto_año</span></h1>
     </div>
     <div class="kpis">
-      <div class="kpi-card">
-        <div class="kpi-title">C2: 2.3.1 Material lúdico</div>
-        <div id="kpi-mat" class="kpi-value">$ 2.918,26</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-title">C2: 2.3.2 Mobiliario</div>
-        <div id="kpi-mob" class="kpi-value">$ 1.528,00</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-title">C2: 2.3.3 Juegos exteriores</div>
-        <div id="kpi-jue" class="kpi-value">$ 5.748,00</div>
-      </div>
-      <div class="kpi-card total">
-        <div class="kpi-title">Total</div>
-        <div id="kpi-total" class="kpi-value">—</div>
-      </div>
+      <div class="kpi-card"><div class="kpi-title">C2: 2.3.1 Material lúdico</div><div id="kpi-mat" class="kpi-value">$ 2.918,26</div></div>
+      <div class="kpi-card"><div class="kpi-title">C2: 2.3.2 Mobiliario</div><div id="kpi-mob" class="kpi-value">$ 1.528,00</div></div>
+      <div class="kpi-card"><div class="kpi-title">C2: 2.3.3 Juegos exteriores</div><div id="kpi-jue" class="kpi-value">$ 5.748,00</div></div>
+      <div class="kpi-card total"><div class="kpi-title">Total</div><div id="kpi-total" class="kpi-value">—</div></div>
     </div>
   </header>
 
