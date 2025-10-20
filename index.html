@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ubicacion geografica  ML_M_JE_Presupuesto_año</title>
+  <link rel="icon" href="assets/logo.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <img src="assets/logo.png" alt="Logo" class="logo"/>
+      <h1>Ubicacion geografica  <span class="accent">ML_M_JE_Presupuesto_año</span></h1>
+    </div>
+    <div class="kpis">
+      <div class="kpi-card">
+        <div class="kpi-title">C2: 2.3.1 Material lúdico</div>
+        <div id="kpi-mat" class="kpi-value">$ 2.918,26</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-title">C2: 2.3.2 Mobiliario</div>
+        <div id="kpi-mob" class="kpi-value">$ 1.528,00</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-title">C2: 2.3.3 Juegos exteriores</div>
+        <div id="kpi-jue" class="kpi-value">$ 5.748,00</div>
+      </div>
+      <div class="kpi-card total">
+        <div class="kpi-title">Total</div>
+        <div id="kpi-total" class="kpi-value">—</div>
+      </div>
+    </div>
+  </header>
+
+  <section class="controls">
+    <select id="filtro-prov" class="control"><option value="">Provincia</option></select>
+    <select id="filtro-cant" class="control"><option value="">Cantón</option></select>
+    <select id="filtro-parr" class="control"><option value="">Parroquia</option></select>
+    <select id="filtro-sost" class="control"><option value="">Sostenimiento</option></select>
+    <input id="buscar-amie" class="control" placeholder="Buscar AMIE..." />
+    <input id="buscar-nombre" class="control" placeholder="Buscar nombre..." />
+    <button id="btn-buscar" class="btn">Buscar</button>
+    <button id="btn-limpiar" class="btn ghost">Limpiar</button>
+  </section>
+
+  <main class="layout">
+    <div id="map"></div>
+    <aside class="panel">
+      <div class="panel-header">
+        <span>Listado</span>
+        <button id="toggle-panel" class="btn icon">Ocultar</button>
+      </div>
+      <div id="table-container">
+        <table id="tabla" class="tabla">
+          <thead>
+            <tr>
+              <th>AMIE</th><th>Nombre</th><th>Tipo</th><th>Sostenimiento</th><th>Provincia</th><th>Cantón</th><th>Parroquia</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="panel-footer">
+        <button id="btn-export" class="btn small">Exportar selección (CSV)</button>
+        <span id="sel-count">Selección: 0</span>
+      </div>
+    </aside>
+  </main>
+
+  <footer class="footer">
+    <span>© 2025 – Mapa dinámico ML_M_JE • Leaflet + SheetJS</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
