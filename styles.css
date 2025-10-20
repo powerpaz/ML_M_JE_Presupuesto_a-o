@@ -35,3 +35,16 @@ h1{margin:0;font-size:20px;font-weight:700}
 .footer{padding:8px 16px;border-top:1px solid var(--border);color:var(--muted)}
 @media (max-width:1100px){.layout{grid-template-columns:1fr} .panel{height:420px}}
 .leaflet-control-attribution{display:none}
+
+.amie-label{
+  background: rgba(13,20,32,.85);
+  color: #fff;
+  border: 1px solid #233142;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-weight: 700;
+  font-size: 11px;
+}
+.popup-table td{ padding:2px 6px; border-bottom: 1px solid #233142; font-size: 12px }
+.popup-table tr:last-child td{ border-bottom: none }
+
