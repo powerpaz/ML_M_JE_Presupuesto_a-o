@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>CRONOGRAMA VAL_PRESUPUESTO</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#f4f5f9; --card:#ffffff; --b:#e5e7eb; --acc:#1d4ed8;
+      --header-h:68px; --radius:14px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,Segoe UI,Inter,Roboto,Arial,sans-serif;background:var(--bg);color:#111827}
+
+    /* ===== HEADER ===== */
+    header{
+      position:sticky;top:0;z-index:1000;height:var(--header-h);
+      display:flex;align-items:center;justify-content:center;gap:10px;
+      padding:10px 16px;background:#1e293b;color:white;
+      box-shadow:0 2px 10px rgba(0,0,0,.15)
+    }
+    header img{height:42px;width:auto;object-fit:contain}
+    header h1{font-size:clamp(16px,3vw,20px);margin:0}
+
+    /* ===== LAYOUT ===== */
+    .wrap{max-width:1400px;margin:0 auto;padding:16px}
+    .grid{display:grid;grid-template-columns:380px 1fr;gap:16px}
+    aside.panel, main.panel{background:var(--card);border:1px solid var(--b);border-radius:var(--radius);padding:16px}
+
+    label{display:block;margin-bottom:4px;font-weight:600;color:#1e293b}
+    input,select,button{width:100%;padding:10px;border-radius:10px;border:1px solid var(--b)}
+    button{cursor:pointer;background:var(--acc);color:white;font-weight:600;border:none}
+    button.secondary{background:#0369a1}
+    button.success{background:#16a34a}
+    .row{margin-bottom:12px}
+
+    /* Rubros box */
+    #rubros-box{margin-top:12px;border:1px solid var(--b);border-radius:12px;background:#f9fafb;padding:12px}
+    #rubros-box table{width:100%;border-collapse:collapse;font-size:14px}
+    #rubros-box th{padding:6px 4px;text-align:left;border-bottom:1px solid #cbd5e1}
+    #rubros-box td{padding:6px 4px;border-bottom:1px dashed #e2e8f0}
+    #rubros-box td:last-child{text-align:right}
+    #rubros-box tfoot td{font-weight:700;border-top:2px solid #94a3b8}
+
+    /* Map */
+    #map{height:72vh;border-radius:var(--radius);border:1px solid var(--b)}
+
+    @media(max-width:1024px){
+      .grid{grid-template-columns:1fr}
+      #map{height:60vh}
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <img src="logo.png" alt="Logo institucional" onerror="this.style.display='none'">
+    <h1>Rubros C2 — Tabla + Mapa (Versión Ligera)</h1>
+  </header>
+
+  <!-- CONTENT -->
+  <div class="wrap">
+    <div class="grid">
+      <!-- SIDEBAR -->
+      <aside class="panel">
+        <div class="row">
+          <label>AMIE</label>
+          <input id="busqueda" type="search" placeholder="Buscar por AMIE o nombre">
+        </div>
+
+        <div class="row">
+          <label>PROVINCIA</label>
+          <select id="provSel"><option>Todas</option></select>
+        </div>
+        <div class="row">
+          <label>CANTÓN</label>
+          <select id="cantonSel"><option>Todos</option></select>
+        </div>
+
+        <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <button id="btnLimpiar">Limpiar filtros</button>
+          <button class="success" id="btnExportar">Exportar CSV</button>
+        </div>
+
+        <!-- RUBROS TABLE -->
+        <div id="rubros-box">
+          <div style="font-weight:700;margin-bottom:8px">💼 Presupuesto — C2</div>
+          <table id="rubrosTable">
+            <thead>
+              <tr><th>Rubro</th><th>Costo</th></tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot>
+              <tr><td>Total</td><td id="totalC2">$0,00</td></tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div style="margin-top:10px;font-size:13px;color:#64748b">
+          Instituciones: <span id="nInst">—</span><br>
+          Filtros activos: <span id="nFiltros">—</span>
+        </div>
+      </aside>
+
+      <!-- MAIN -->
+      <main class="panel">
+        <div id="map"></div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+  // === RUBROS C2 ===
+  const RUBROS_C2 = [
+    { nombre: 'C2: Rubro 2.3.1 MATERIAL LÚDICO (DIDÁCTICO)', costo: 6983396.18 },
+    { nombre: 'C2: Rubro 2.3.2 MOBILIARIO', costo: 3656504.00 },
+    { nombre: 'C2: Rubro 2.3.3 JUEGOS EXTERIORES (EQUIPAMIENTO)', costo: 2253216.00 }
+  ];
+  const formato = new Intl.NumberFormat('es-EC', { style:'currency', currency:'USD' });
+
+  function renderRubros(){
+    const tb = document.querySelector('#rubrosTable tbody');
+    const total = RUBROS_C2.reduce((a,b)=>a+b.costo,0);
+    tb.innerHTML = RUBROS_C2.map(r=>`
+      <tr>
+        <td>${r.nombre}</td>
+        <td><b>${formato.format(r.costo)}</b></td>
+      </tr>`).join('');
+    document.getElementById('totalC2').textContent = formato.format(total);
+  }
+
+  // === MAPA Y DATOS ===
+  let map, cluster;
+
+  function initMap(){
+    map = L.map('map').setView([-1.83, -78.18], 7);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      attribution:'© OpenStreetMap contributors'
+    }).addTo(map);
+    cluster = L.markerClusterGroup({ maxClusterRadius: 60 });
+    map.addLayer(cluster);
+
+    // Provincias
+    fetch('provincias_simplificado.geojson')
+      .then(r=>r.ok?r.json():null)
+      .then(j=>{
+        if(j) L.geoJSON(j,{style:{color:'#1d4ed8',weight:2,fillOpacity:0}}).addTo(map);
+      });
+
+    // Instituciones desde CSV
+    Papa.parse('datos_min.csv', {
+      download: true,
+      header: true,
+      complete: function(results) {
+        const data = results.data.filter(
+r => {
+  // admitir múltiples nombres de columnas
+  const keys = Object.keys(r);
+  const get = (klist)=>{
+    for (const k of klist){
+      if (keys.includes(k)) return r[k];
+    }
+    return undefined;
+  };
+  const lat = get(['LAT','Lat','lat','Latitud','latitud']);
+  const lon = get(['LON','Lon','lon','Longitud','longitud','LNG','lng']);
+  return lat && lon;
+}
+);
+        document.getElementById('nInst').textContent = data.length;
+        data.forEach(r => {
+          
+const keys = Object.keys(r);
+const get = (klist)=>{
+  for (const k of klist){
+    if (keys.includes(k)) return r[k];
+  }
+  return undefined;
+};
+const lat = parseFloat(get(['LAT','Lat','lat','Latitud','latitud']));
+const lon = parseFloat(get(['LON','Lon','lon','Longitud','longitud','LNG','lng']));
+const marker = L.marker([lat, lon]);
+
+          const amie = r.AMIE || r.amie || r['Amie'] || '—';
+          const nombre = r.NOMBRE || r.Nombre || r['nombre'] || 'Sin nombre';
+          marker.bindPopup(`<b>${amie}</b><br>${nombre}`);
+          cluster.addLayer(marker);
+        });
+      }
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', ()=>{
+    renderRubros();
+    initMap();
+  });
+  </script>
+</body>
+</html>
+
