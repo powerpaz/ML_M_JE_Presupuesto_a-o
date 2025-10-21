@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mapa de Instituciones — Regímenes & Zonas</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" crossorigin="anonymous"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" crossorigin="anonymous"/>
+  <link rel="stylesheet" href="./styles.css"/>
+
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+  <script defer src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js" crossorigin="anonymous"></script>
+  <script defer src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js" crossorigin="anonymous"></script>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1>Instituciones por Régimen & Zona</h1>
+    <div id="kpis">
+      <div class="kpi"><span id="kpi-total">0</span><small>Instituciones</small></div>
+      <div class="kpi"><span id="kpi-costa">0</span><small>Costa</small></div>
+      <div class="kpi"><span id="kpi-sierra">0</span><small>Sierra</small></div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Filtros</h2>
+      <div class="filter">
+        <label><input type="checkbox" id="chk-costa" checked> Costa</label>
+        <label><input type="checkbox" id="chk-sierra" checked> Sierra</label>
+      </div>
+      <div class="filter">
+        <label for="sel-zona">Zona:</label>
+        <select id="sel-zona">
+          <option value="">Todas</option>
+        </select>
+      </div>
+      <div class="legend">
+        <div><span class="dot red"></span> Régimen Costa</div>
+        <div><span class="dot yellow"></span> Régimen Sierra</div>
+      </div>
+      <div class="note">
+        <p>Se elimina panel de rubros/costos. Pop-up suma <strong>Material Lúdico + Mobiliario + Juegos Exteriores</strong> en un solo rubro.</p>
+      </div>
+    </aside>
+
+    <main id="map"></main>
+  </div>
+
+  <footer class="foot">
+    <span>© Proyecto Regímenes & Zonas — Leaflet</span>
+  </footer>
+</body>
+</html>

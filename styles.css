@@ -1,0 +1,32 @@
+/* Layout básico y estilos sobrios */
+:root{
+  --bg:#ffffff; --ink:#0b1320; --muted:#6b7280;
+  --brand:#1DB954; --panel:#f8fafc; --border:#e5e7eb;
+}
+*{box-sizing:border-box}
+body{margin:0; font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color:var(--ink); background:var(--bg)}
+.topbar{display:flex; align-items:center; justify-content:space-between; padding:10px 16px; border-bottom:1px solid var(--border); position:sticky; top:0; background:#fff; z-index:10}
+.topbar h1{font-size:18px; margin:0}
+#kpis{display:flex; gap:12px}
+.kpi{background:var(--panel); border:1px solid var(--border); padding:6px 10px; border-radius:12px; text-align:center; min-width:90px}
+.kpi span{display:block; font-weight:700; font-size:18px}
+.kpi small{color:var(--muted)}
+
+.layout{display:grid; grid-template-columns:320px 1fr; min-height:calc(100vh - 56px)}
+.panel{border-right:1px solid var(--border); padding:14px; background:var(--panel)}
+.panel h2{margin:0 0 12px 0; font-size:16px}
+.filter{display:flex; align-items:center; gap:8px; margin-bottom:10px}
+.legend{margin:10px 0; display:flex; gap:18px; flex-wrap:wrap}
+.legend .dot{display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:6px; border:1px solid #00000033; vertical-align:middle}
+.legend .red{background:#d40000}
+.legend .yellow{background:#f4d03f}
+
+#map{height:calc(100vh - 56px); width:100%}
+.foot{padding:8px 16px; border-top:1px solid var(--border); color:var(--muted); font-size:12px}
+
+/* Popup estilizado */
+.popup h3{margin:0 0 6px 0; font-size:14px}
+.popup table{border-collapse:collapse; width:100%}
+.popup td{padding:3px 4px; border-bottom:1px dashed #00000022; vertical-align:top; font-size:13px}
+.popup td.key{color:var(--muted); width:40%}
+.popup .currency{font-variant-numeric: tabular-nums}
