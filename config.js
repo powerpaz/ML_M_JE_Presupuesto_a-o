@@ -1,3 +1,7 @@
-// config.js — frontend safe
-window.SUPABASE_URL = "https://lytvdtlbfdiolopukzsg.supabase.co";
-window.SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5dHZkdGxiZmRpb2xvcHVrenNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA5NTIyMDUsImV4cCI6MjA3NjUyODIwNX0.HzXLTa6lbcFX2LdJAHdJ2v1XCBdck7vJBmCfqfxHW2M";
+// config.js - lee desde variables de entorno, NO hardcodea credenciales
+window.SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
+window.SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+
+if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY) {
+  console.warn("⚠️ Supabase credentials not configured. Using CSV fallback.");
+}
