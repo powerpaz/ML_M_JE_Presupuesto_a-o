@@ -1,0 +1,32 @@
+# Credenciales
+.env
+.env.local
+.env.*.local
+config.js.local
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+*.lock
+
+# Build
+dist/
+dist-ssr/
+.vite/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Datos locales
+datos_min.csv
+rubros_csv.csv
+*.personal.csv
