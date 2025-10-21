@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mapa — Régimen, Zona y Año de Dotación</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" crossorigin="anonymous"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" crossorigin="anonymous"/>
+  <link rel="stylesheet" href="./styles.css"/>
+
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+  <script defer src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js" crossorigin="anonymous"></script>
+  <script defer src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js" crossorigin="anonymous"></script>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1>Instituciones — Filtros por Régimen, Zona y Año</h1>
+  </header>
+
+  <div class="layout">
+    <aside class="panel">
+      <h2>Filtros</h2>
+      <div class="filter-row">
+        <label><input type="checkbox" id="chk-costa" checked> Costa</label>
+        <label><input type="checkbox" id="chk-sierra" checked> Sierra</label>
+      </div>
+      <div class="filter-row">
+        <label for="sel-zona">Zona:</label>
+        <select id="sel-zona"><option value="">Todas</option></select>
+      </div>
+      <div class="filter-row">
+        <label for="sel-anio">Año de dotación:</label>
+        <select id="sel-anio"><option value="">Todos</option></select>
+      </div>
+      <div class="legend">
+        <div><span class="dot red"></span> Régimen Costa</div>
+        <div><span class="dot yellow"></span> Régimen Sierra</div>
+      </div>
+      <p class="note">Pop-up incluye rubro único (Material Lúdico + Mobiliario + Juegos Exteriores).</p>
+    </aside>
+
+    <main id="map"></main>
+  </div>
+
+  <footer class="foot">
+    <span>© Mapa Leaflet</span>
+  </footer>
+</body>
+</html>
